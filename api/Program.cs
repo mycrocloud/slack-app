@@ -1,44 +1,30 @@
+using Microsoft.AspNetCore.Mvc;
+using SlackApp;
+
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
-// Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
-builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+builder.Services.AddHttpLogging(_ => { });
 
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
-if (app.Environment.IsDevelopment())
-{
-    app.UseSwagger();
-    app.UseSwaggerUI();
-}
+app.UseHttpLogging();
 
-app.UseHttpsRedirection();
+app.UseMiddleware<SlackSignatureVerificationMiddleware>();
 
-var summaries = new[]
-{
-    "Freezing", "Bracing", "Chilly", "Cool", "Mild", "Warm", "Balmy", "Hot", "Sweltering", "Scorching"
-};
-
-app.MapGet("/weatherforecast", () =>
-{
-    var forecast =  Enumerable.Range(1, 5).Select(index =>
-        new WeatherForecast
-        (
-            DateOnly.FromDateTime(DateTime.Now.AddDays(index)),
-            Random.Shared.Next(-20, 55),
-            summaries[Random.Shared.Next(summaries.Length)]
-        ))
-        .ToArray();
-    return forecast;
-})
-.WithName("GetWeatherForecast")
-.WithOpenApi();
+app.MapPost("/slack/commands", async ([FromForm] SlackCommandPayload command) =>
+    {
+        return Results.Ok(new
+        {
+            response_type = "ephemeral",
+            text = $"I received your command: {command.Text}",
+        });
+    })
+    .DisableAntiforgery();
 
 app.Run();
 
-record WeatherForecast(DateOnly Date, int TemperatureC, string? Summary)
+public class SlackCommandPayload
 {
-    public int TemperatureF => 32 + (int)(TemperatureC / 0.5556);
+    [FromForm(Name = "token")] public string? Token { get; set; }
+    [FromForm(Name = "text")] public string? Text { get; set; }
 }
