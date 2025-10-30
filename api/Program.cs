@@ -1,49 +1,44 @@
-using Microsoft.AspNetCore.Mvc;
-using SlackApp;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.HttpOverrides;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Services.AddHttpLogging(_ => { });
+builder.Services.AddControllers();
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
+    {
+        options.Authority = builder.Configuration["Authentication:Schemes:Auth0JwtBearer:Authority"];
+        options.Audience = builder.Configuration["Authentication:Schemes:Auth0JwtBearer:Audience"];
+    });
+
+builder.Services.AddCors(options =>
+{
+    options.AddDefaultPolicy(policy =>
+    {
+        policy.WithOrigins(builder.Configuration["WebOrigin"])
+            .AllowAnyHeader()
+            .AllowAnyMethod()
+            .AllowCredentials();
+    });
+});
 
 var app = builder.Build();
+app.UseForwardedHeaders(new ForwardedHeadersOptions
+{
+    ForwardedHeaders = ForwardedHeaders.XForwardedProto | ForwardedHeaders.XForwardedFor
+});
 
-app.UseHttpLogging();
+app.UseRouting();
 
-app.UseMiddleware<SlackSignatureVerificationMiddleware>();
+app.UseCors();
 
-app.MapPost("/slack/commands", async ([FromForm] SlackCommandPayload command) =>
-    {
-        var (action, project) = ParseCommand(command.Text);
-        
-        if (action == "subscribe")
-            return Results.Json(new { response_type = "in_channel", text = $"🔔 {command.UserName} subscribed to *{project}*" });
-        
-        return Results.Json(new { text = "Unknown command" });
-    })
-    .DisableAntiforgery();
+app.UseAuthentication();
+app.UseAuthorization();
+
+app.UseMiddleware<SlackVerificationMiddleware>();
+
+app.MapGet("/ping", () => "pong");
+app.MapControllers();
 
 app.Run();
-
-(string action, string project) ParseCommand(string text)
-{
-    var parts = text.Split(' ', 2);
-    return (parts[0], parts.Length > 1 ? parts[1] : "");
-}
-
-public class SlackCommandPayload
-{
-    [FromForm(Name = "token")] public string? Token { get; set; }
-    [FromForm(Name = "team_id")] public string? TeamId { get; set; }
-    [FromForm(Name = "team_domain")] public string? TeamDomain { get; set; }
-    [FromForm(Name = "enterprise_id")] public string? EnterpriseId { get; set; }
-    [FromForm(Name = "enterprise_name")] public string? EnterpriseName { get; set; }
-    [FromForm(Name = "channel_id")] public string? ChannelId { get; set; }
-    [FromForm(Name = "channel_name")] public string? ChannelName { get; set; }
-    [FromForm(Name = "user_id")] public string? UserId { get; set; }
-    [FromForm(Name = "user_name")] public string? UserName { get; set; }
-    [FromForm(Name = "command")] public string? Command { get; set; }
-    [FromForm(Name = "text")] public string? Text { get; set; }
-    [FromForm(Name = "response_url")] public string? ResponseUrl { get; set; }
-    [FromForm(Name = "trigger_id")] public string? TriggerId { get; set; }
-    [FromForm(Name = "api_app_id")] public string? ApiAppId { get; set; }
-}
