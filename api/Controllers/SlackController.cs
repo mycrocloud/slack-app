@@ -2,72 +2,68 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
 using System.Text.Json;
+using Dapper;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.IdentityModel.Tokens;
+using Npgsql;
 
 namespace SlackApp.Controllers;
 
 [ApiController]
 [Route("slack")]
 [IgnoreAntiforgeryToken]
-public class SlackController : ControllerBase
+public class SlackController(IConfiguration configuration) : ControllerBase
 {
-    private readonly IConfiguration _configuration;
-
-    public SlackController(IConfiguration configuration)
-    {
-        _configuration = configuration;
-    }
-    
     [HttpPost("commands")]
     [Consumes("application/x-www-form-urlencoded")]
     public IActionResult Commands([FromForm] SlackCommandPayload cmd)
     {
         var action = cmd.Text.Split(" ")[0];
+        
         switch (action)
         {
             case "ping":
                 return new JsonResult(new { response_type = "in_channel", text = "pong" });
             case "signin":
-            {
-                return new JsonResult(new { response_type = "in_channel", text = $"{GenerateSignInUrl()}" });
-
-                string GenerateSignInUrl()
                 {
-                    var slackUserId = cmd.UserId;
-                    var slackTeamId = cmd.TeamId;
-                    var channelId = cmd.ChannelId;
+                    return new JsonResult(new { response_type = "in_channel", text = $"{GenerateSignInUrl()}" });
 
-                    var secret = _configuration["Slack:LinkSecret"];
-                    var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secret));
-                    var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
+                    string GenerateSignInUrl()
+                    {
+                        var slackUserId = cmd.UserId;
+                        var slackTeamId = cmd.TeamId;
+                        var channelId = cmd.ChannelId;
 
-                    var token = new JwtSecurityToken(
-                        claims:
-                        [
-                            new Claim("slack_user_id", slackUserId!),
+                        var secret = configuration["Slack:LinkSecret"];
+                        var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secret));
+                        var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
+
+                        var token = new JwtSecurityToken(
+                            claims:
+                            [
+                                new Claim("slack_user_id", slackUserId!),
                             new Claim("slack_team_id", slackTeamId!),
                             new Claim("channel_id", channelId!)
-                        ],
-                        expires: DateTime.UtcNow.AddMinutes(15),
-                        signingCredentials: creds
-                    );
+                            ],
+                            expires: DateTime.UtcNow.AddMinutes(15),
+                            signingCredentials: creds
+                        );
 
-                    var jwt = new JwtSecurityTokenHandler().WriteToken(token);
+                        var jwt = new JwtSecurityTokenHandler().WriteToken(token);
 
-                    var selfUrl = Request.Scheme + "://" + Request.Host;
-                    var redirectUri = Uri.EscapeDataString($"{selfUrl}/slack/link-callback");
-                    var url = $"{_configuration["WebOrigin"]}/integrations/slack/link?state={jwt}&redirectUri={redirectUri}";
-                    
-                    return url;
+                        var selfUrl = Request.Scheme + "://" + Request.Host;
+                        var redirectUri = Uri.EscapeDataString($"{selfUrl}/slack/link-callback");
+                        var url = $"{configuration["WebOrigin"]}/integrations/slack/link?state={jwt}&redirectUri={redirectUri}";
+
+                        return url;
+                    }
                 }
-            }
             case "subscribe":
-            {
-                var project = cmd.Text.Split(" ")[1];
-                return new JsonResult(new { response_type = "in_channel", text = $"🔔 {cmd.UserName} subscribed to *{project}*" });
-            }
+                {
+                    var project = cmd.Text.Split(" ")[1];
+                    return new JsonResult(new { response_type = "in_channel", text = $"🔔 {cmd.UserName} subscribed to *{project}*" });
+                }
             default:
                 return new JsonResult(new { text = "Unknown command" });
         }
@@ -80,7 +76,7 @@ public class SlackController : ControllerBase
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
         
         var tokenHandler = new JwtSecurityTokenHandler();
-        var key = Encoding.UTF8.GetBytes(_configuration["Slack:LinkSecret"]);
+        var key = Encoding.UTF8.GetBytes(configuration["Slack:LinkSecret"]);
 
         var validationParams = new TokenValidationParameters
         {
@@ -103,15 +99,22 @@ public class SlackController : ControllerBase
         
         var slackBotToken = await GetSlackBotTokenAsync(slackTeamId);
 
-        await SendSlackMessageAsync(slackBotToken, channelId!,
-            $"✅ Your account has been linked successfully!\nUser: <@{slackUserId}>");
+        await SendSlackEphemeralAsync(slackBotToken, channelId!,
+            "✅ Your account has been linked successfully!");
         
         return Ok(new { message = "Slack account linked successfully" });
     }
 
     private async Task<string> GetSlackBotTokenAsync(string slackTeamId)
     {
-        return await System.IO.File.ReadAllTextAsync(".env");
+        using var dbConnection = new NpgsqlConnection(configuration.GetConnectionString("DefaultConnection"));
+        const string sql =
+    """
+        SELECT "BotAccessToken" FROM "SlackInstallations" WHERE "TeamId" = @TeamId; 
+    """;
+        var token = await dbConnection.QuerySingleAsync<string>(sql, new { TeamId = slackTeamId });
+
+        return token;
     }
 
     private async Task SaveSlackMappingAsync(string? userId, string slackUserId, string slackTeamId, string? channelId)
@@ -138,20 +141,18 @@ public class SlackController : ControllerBase
         await System.IO.File.WriteAllTextAsync(path, json);
     }
     
-    private async Task SendSlackMessageAsync(string botToken, string channelId, string text)
+    private async Task SendSlackEphemeralAsync(string botToken, string channelId, string text)
     {
         using var http = new HttpClient();
         http.DefaultRequestHeaders.Authorization = 
             new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", botToken);
         
         var joinPayload = new { channel = channelId };
-        var res2 = await http.PostAsJsonAsync("https://slack.com/api/conversations.join", joinPayload);
-        var json2 = await res2.Content.ReadAsStringAsync();
         
         var payload = new
         {
             channel = channelId,
-            text = text
+            text
         };
 
         var response = await http.PostAsJsonAsync("https://slack.com/api/chat.postMessage", payload);

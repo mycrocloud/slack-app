@@ -13,11 +13,11 @@ public class SlackVerificationMiddleware
 
     public async Task Invoke(HttpContext context, IConfiguration configuration, IHostEnvironment environment)
     {
-        // if (environment.IsDevelopment())
-        // {
-        //     await _next(context);
-        //     return;
-        // }
+        if (environment.IsDevelopment())
+        {
+            await _next(context);
+            return;
+        }
 
         if (context.Request.Path.StartsWithSegments("/slack/commands"))
         {
