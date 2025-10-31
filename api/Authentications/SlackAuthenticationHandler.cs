@@ -61,7 +61,7 @@ public class SlackAuthenticationHandler: AuthenticationHandler<SlackAuthenticati
         await Response.WriteAsJsonAsync(new
         {
             response_type = "ephemeral",
-            text = "You are not signed in to Vercel. Use `/mycrocloud signin` to to sign in."
+            text = "You are not signed in to MycroCloud. Use `/mycrocloud signin` to to sign in."
         });
     }
 }
