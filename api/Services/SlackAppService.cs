@@ -59,7 +59,7 @@ public class SlackAppService
         return token;
     }
     
-    public async Task SendSlackEphemeralAsync(string slackTeamId, string channelId, string text)
+    public async Task SendSlackEphemeralMessage(string slackTeamId, string channelId, string slackUserId, string text)
     {
         var botToken = await GetSlackBotTokenAsync(slackTeamId);
         
@@ -70,10 +70,11 @@ public class SlackAppService
         var payload = new
         {
             channel = channelId,
+            user = slackUserId,
             text
         };
-
-        var response = await http.PostAsJsonAsync("https://slack.com/api/chat.postMessage", payload);
+        
+        var response = await http.PostAsJsonAsync("https://slack.com/api/chat.postEphemeral", payload);
         var json = await response.Content.ReadAsStringAsync();
     }
 
