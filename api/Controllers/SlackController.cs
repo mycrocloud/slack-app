@@ -7,66 +7,30 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.IdentityModel.Tokens;
 using Npgsql;
+using SlackApp.Services;
 
 namespace SlackApp.Controllers;
 
 [ApiController]
 [Route("slack")]
 [IgnoreAntiforgeryToken]
-public class SlackController(IConfiguration configuration) : ControllerBase
+public class SlackController(IConfiguration configuration, SlackAppService slackAppService) : ControllerBase
 {
-    [HttpPost("commands")]
+    [HttpPost("commands/ping")]
     [Consumes("application/x-www-form-urlencoded")]
-    public IActionResult Commands([FromForm] SlackCommandPayload cmd)
+    public IActionResult Ping([FromForm] SlackCommandPayload cmd)
     {
-        var action = cmd.Text.Split(" ")[0];
+        return new JsonResult(new { response_type = "in_channel", text = "pong" });
+    }
+    
+    [HttpPost("commands/signin")]
+    [Consumes("application/x-www-form-urlencoded")]
+    public async Task<IActionResult> SignIn([FromForm] SlackCommandPayload cmd)
+    {
+        var selfUrl = Request.Scheme + "://" + Request.Host;
+        var link = slackAppService.GenerateSignInUrl(cmd.UserId, cmd.TeamId, cmd.ChannelId, selfUrl);
         
-        switch (action)
-        {
-            case "ping":
-                return new JsonResult(new { response_type = "in_channel", text = "pong" });
-            case "signin":
-                {
-                    return new JsonResult(new { response_type = "in_channel", text = $"{GenerateSignInUrl()}" });
-
-                    string GenerateSignInUrl()
-                    {
-                        var slackUserId = cmd.UserId;
-                        var slackTeamId = cmd.TeamId;
-                        var channelId = cmd.ChannelId;
-
-                        var secret = configuration["Slack:LinkSecret"];
-                        var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secret));
-                        var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
-
-                        var token = new JwtSecurityToken(
-                            claims:
-                            [
-                                new Claim("slack_user_id", slackUserId!),
-                            new Claim("slack_team_id", slackTeamId!),
-                            new Claim("channel_id", channelId!)
-                            ],
-                            expires: DateTime.UtcNow.AddMinutes(15),
-                            signingCredentials: creds
-                        );
-
-                        var jwt = new JwtSecurityTokenHandler().WriteToken(token);
-
-                        var selfUrl = Request.Scheme + "://" + Request.Host;
-                        var redirectUri = Uri.EscapeDataString($"{selfUrl}/slack/link-callback");
-                        var url = $"{configuration["WebOrigin"]}/integrations/slack/link?state={jwt}&redirectUri={redirectUri}";
-
-                        return url;
-                    }
-                }
-            case "subscribe":
-                {
-                    var project = cmd.Text.Split(" ")[1];
-                    return new JsonResult(new { response_type = "in_channel", text = $"🔔 {cmd.UserName} subscribed to *{project}*" });
-                }
-            default:
-                return new JsonResult(new { text = "Unknown command" });
-        }
+        return new JsonResult(new { response_type = "in_channel", text = link });
     }
     
     [HttpPost("link-callback")]
@@ -99,8 +63,7 @@ public class SlackController(IConfiguration configuration) : ControllerBase
         
         var slackBotToken = await GetSlackBotTokenAsync(slackTeamId);
 
-        await SendSlackEphemeralAsync(slackBotToken, channelId!,
-            "✅ Your account has been linked successfully!");
+        await SendSlackEphemeralAsync(slackBotToken, channelId!, $"✅ You are signed in to MycroCloud as {userId}");
         
         return Ok(new { message = "Slack account linked successfully" });
     }

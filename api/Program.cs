@@ -1,5 +1,7 @@
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.HttpOverrides;
+using SlackApp.Middlewares;
+using SlackApp.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -23,20 +25,23 @@ builder.Services.AddCors(options =>
     });
 });
 
+builder.Services.AddScoped<SlackAppService>();
+
 var app = builder.Build();
 app.UseForwardedHeaders(new ForwardedHeadersOptions
 {
     ForwardedHeaders = ForwardedHeaders.XForwardedProto | ForwardedHeaders.XForwardedFor
 });
 
+app.UseMiddleware<ReadSlackRequestBodyMiddleware>();
+app.UseSlackVerification();
+app.UseSlackCommandRewrite();
+
 app.UseRouting();
 
 app.UseCors();
-
 app.UseAuthentication();
 app.UseAuthorization();
-
-app.UseMiddleware<SlackVerificationMiddleware>();
 
 app.MapGet("/ping", () => "pong");
 app.MapControllers();

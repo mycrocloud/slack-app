@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using Microsoft.AspNetCore.Http.Features;
+using SlackApp.Extensions;
 
 public class SlackVerificationMiddleware
 {
@@ -13,13 +14,20 @@ public class SlackVerificationMiddleware
 
     public async Task Invoke(HttpContext context, IConfiguration configuration, IHostEnvironment environment)
     {
+        // Always check in production
+        
         if (environment.IsDevelopment())
         {
-            await _next(context);
-            return;
+            var verifySlackRequest =
+                !bool.TryParse(configuration["VerifySlackRequest"], out var verify) || verify;
+            
+            if (!verifySlackRequest)
+            {
+                return;
+            }
         }
 
-        if (context.Request.Path.StartsWithSegments("/slack/commands"))
+        if (context.Request.IsSlackCommandRequest())
         {
             if (!context.Request.HasFormContentType ||
                 !context.Request.ContentType.StartsWith("application/x-www-form-urlencoded", StringComparison.OrdinalIgnoreCase))
@@ -62,13 +70,7 @@ public class SlackVerificationMiddleware
                 return;
             }
 
-            context.Request.EnableBuffering();
-            string body;
-            using (var reader = new StreamReader(context.Request.Body, Encoding.UTF8, leaveOpen: true))
-            {
-                body = await reader.ReadToEndAsync();
-                context.Request.Body.Position = 0;
-            }
+            var body = context.Items["Slack:Body"] as string;
 
             var baseString = $"v0:{timestamp}:{body}";
             var keyBytes = Encoding.UTF8.GetBytes(slackSigningSecret);
@@ -89,5 +91,13 @@ public class SlackVerificationMiddleware
         }
 
         await _next(context);
+    }
+}
+
+public static class SlackVerificationMiddlewareExtensions
+{
+    public static IApplicationBuilder UseSlackVerification(this IApplicationBuilder builder)
+    {
+        return builder.UseMiddleware<SlackVerificationMiddleware>();
     }
 }
