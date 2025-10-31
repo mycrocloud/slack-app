@@ -47,6 +47,17 @@ public class SlackAuthenticationHandler: AuthenticationHandler<SlackAuthenticati
 
         return AuthenticateResult.Success(ticket);
     }
+
+    protected override async Task HandleChallengeAsync(AuthenticationProperties properties)
+    {
+        Response.StatusCode = StatusCodes.Status200OK;
+        
+        await Response.WriteAsJsonAsync(new
+        {
+            response_type = "ephemeral",
+            text = "⚠️ You need to sign in to MycroCloud first. Use `/mycrocloud login` to connect your account."
+        });
+    }
 }
 
 public class SlackAuthenticationOptions : AuthenticationSchemeOptions
