@@ -12,11 +12,13 @@ public class SlackAppService
 {
     private readonly IConfiguration _configuration;
     private readonly LinkGenerator _linkGenerator;
+    private readonly string? _connectionString;
 
     public SlackAppService(IConfiguration configuration, LinkGenerator linkGenerator)
     {
         _configuration = configuration;
         _linkGenerator = linkGenerator;
+        _connectionString = _configuration.GetConnectionString("DefaultConnection");
     }
     
     public string GenerateSignInUrl(string slackUserId, string slackTeamId, string channelId, HttpContext context)
@@ -47,7 +49,7 @@ public class SlackAppService
     
     private async Task<string> GetSlackBotTokenAsync(string slackTeamId)
     {
-        await using var dbConnection = new NpgsqlConnection(_configuration.GetConnectionString("DefaultConnection"));
+        await using var dbConnection = new NpgsqlConnection(_connectionString);
         const string sql =
             """
                 SELECT "BotAccessToken" FROM "SlackInstallations" WHERE "TeamId" = @TeamId; 
@@ -78,12 +80,13 @@ public class SlackAppService
     public async Task LinkSlackUser(string slackUserId, string slackTeamId, string userId)
     {
         const string sql = 
-    """
-    insert into "SlackUserLinks" ("TeamId", "SlackUserId", "UserId", "LinkedAt")
-    values (@TeamId, @SlackUserId, @UserId, @LinkedAt);
-    """;
+"""
+INSERT INTO "SlackUserLinks" ("TeamId", "SlackUserId", "UserId", "LinkedAt")
+VALUES (@TeamId, @SlackUserId, @UserId, @LinkedAt)
+ON CONFLICT ("TeamId", "SlackUserId") DO NOTHING;
+""";
         
-        await using var dbConnection = new NpgsqlConnection(_configuration.GetConnectionString("DefaultConnection"));
+        await using var dbConnection = new NpgsqlConnection(_connectionString);
         
         await dbConnection.ExecuteAsync(sql, new
         {
@@ -91,6 +94,50 @@ public class SlackAppService
             SlackUserId = slackUserId,
             UserId = userId,
             LinkedAt = DateTime.UtcNow
+        });
+    }
+
+    public async Task<string> GetUserId(string? teamId, string? slackUserId)
+    {
+        await using var dbConnection = new NpgsqlConnection(_connectionString);
+        const string sql =
+            """
+                SELECT "UserId" FROM "SlackUserLinks" WHERE "TeamId" = @TeamId AND "SlackUserId" = @SlackUserId; 
+            """;
+        
+        var userId = await dbConnection.QuerySingleAsync<string>(sql,
+            new { TeamId = teamId, SlackUserId = slackUserId });
+
+        return userId;
+    }
+    
+    public async Task<string?> FindUserId(string? teamId, string? slackUserId)
+    {
+        await using var dbConnection = new NpgsqlConnection(_connectionString);
+        const string sql =
+            """
+                SELECT "UserId" FROM "SlackUserLinks" WHERE "TeamId" = @TeamId AND "SlackUserId" = @SlackUserId; 
+            """;
+        
+        var userId = await dbConnection.QuerySingleOrDefaultAsync<string>(sql,
+            new { TeamId = teamId, SlackUserId = slackUserId });
+
+        return userId;
+    }
+
+    public async Task LogOut(string teamId, string slackUserId)
+    {
+        const string sql = 
+            """
+            DELETE FROM "SlackUserLinks" WHERE "TeamId" = @TeamId AND "SlackUserId" = @SlackUserId
+            """;
+        
+        await using var dbConnection = new NpgsqlConnection(_connectionString);
+        
+        await dbConnection.ExecuteAsync(sql, new
+        {
+            TeamId = teamId,
+            SlackUserId = slackUserId
         });
     }
 }

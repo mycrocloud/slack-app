@@ -4,6 +4,7 @@ using System.Text;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.IdentityModel.Tokens;
+using SlackApp.Extensions;
 using SlackApp.Services;
 
 namespace SlackApp.Controllers;
@@ -11,15 +12,15 @@ namespace SlackApp.Controllers;
 [ApiController]
 [Route("slack/integration")]
 [IgnoreAntiforgeryToken]
+[Authorize(AuthenticationSchemes = "MycroCloudApi")]
 public class SlackIntegrationController(IConfiguration configuration, SlackAppService slackAppService) : ControllerBase
 {
     public const string ControllerName = "SlackIntegration";
     
     [HttpPost("link-callback")]
-    [Authorize]
     public async Task<IActionResult> Link(LinkCallbackPayload payload)
     {
-        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier)!;
+        var userId = User.GetUserId();
         
         var tokenHandler = new JwtSecurityTokenHandler();
         var key = Encoding.UTF8.GetBytes(configuration["Slack:LinkSecret"]);
