@@ -29,6 +29,8 @@ builder.Services.AddCors(options =>
 });
 
 builder.Services.AddScoped<SlackAppService>();
+builder.Services.AddKeyedSingleton<SlackAppService>("SlackAppService");
+builder.Services.AddHostedService<SubscribeService>();
 
 var app = builder.Build();
 app.UseForwardedHeaders(new ForwardedHeadersOptions

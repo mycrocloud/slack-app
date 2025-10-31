@@ -77,6 +77,24 @@ public class SlackAppService
         var response = await http.PostAsJsonAsync("https://slack.com/api/chat.postEphemeral", payload);
         var json = await response.Content.ReadAsStringAsync();
     }
+    
+    public async Task SendSlackMessage(string slackTeamId, string channelId, string text)
+    {
+        var botToken = await GetSlackBotTokenAsync(slackTeamId);
+        
+        using var http = new HttpClient();
+        http.DefaultRequestHeaders.Authorization = 
+            new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", botToken);
+        
+        var payload = new
+        {
+            channel = channelId,
+            text
+        };
+        
+        var response = await http.PostAsJsonAsync("https://slack.com/api/chat.postMessage", payload);
+        var json = await response.Content.ReadAsStringAsync();
+    }
 
     public async Task LinkSlackUser(string slackUserId, string slackTeamId, string userId)
     {
