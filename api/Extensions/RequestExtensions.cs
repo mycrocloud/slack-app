@@ -19,7 +19,7 @@ public static class RequestExtensions
 
     public static bool IsSlackCommandRequest(this HttpRequest request)
     {
-        return request.Path == "/slack/commands" &&
+        return request.Path.StartsWithSegments("/slack/commands") &&
                request.Method.Equals("POST", StringComparison.OrdinalIgnoreCase);
     }
 }
