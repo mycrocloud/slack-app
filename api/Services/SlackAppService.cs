@@ -47,7 +47,7 @@ public class SlackAppService
     
     private async Task<string> GetSlackBotTokenAsync(string slackTeamId)
     {
-        using var dbConnection = new NpgsqlConnection(_configuration.GetConnectionString("DefaultConnection"));
+        await using var dbConnection = new NpgsqlConnection(_configuration.GetConnectionString("DefaultConnection"));
         const string sql =
             """
                 SELECT "BotAccessToken" FROM "SlackInstallations" WHERE "TeamId" = @TeamId; 
@@ -73,5 +73,24 @@ public class SlackAppService
 
         var response = await http.PostAsJsonAsync("https://slack.com/api/chat.postMessage", payload);
         var json = await response.Content.ReadAsStringAsync();
+    }
+
+    public async Task LinkSlackUser(string slackUserId, string slackTeamId, string userId)
+    {
+        const string sql = 
+    """
+    insert into "SlackUserLinks" ("TeamId", "SlackUserId", "UserId", "LinkedAt")
+    values (@TeamId, @SlackUserId, @UserId, @LinkedAt);
+    """;
+        
+        await using var dbConnection = new NpgsqlConnection(_configuration.GetConnectionString("DefaultConnection"));
+        
+        await dbConnection.ExecuteAsync(sql, new
+        {
+            TeamId = slackTeamId,
+            SlackUserId = slackUserId,
+            UserId = userId,
+            LinkedAt = DateTime.UtcNow
+        });
     }
 }

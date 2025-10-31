@@ -27,7 +27,7 @@ public class SlackCommandRewriteMiddleware
 
                 if (!string.IsNullOrWhiteSpace(cmd))
                 {
-                    _logger.LogInformation("Slack command rewrite: {Cmd}", cmd);
+                    _logger.LogDebug("Slack command rewrite: {Cmd}", cmd);
                     context.Request.Path = $"/slack/commands/{cmd}";
                 }
             }
