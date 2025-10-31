@@ -44,7 +44,7 @@ public class SlackIntegrationController(IConfiguration configuration, SlackAppSe
 
         await slackAppService.LinkSlackUser(slackUserId, slackTeamId, userId);
         
-        await slackAppService.SendSlackEphemeralAsync(slackTeamId, channelId!, $"✅ You are signed in to MycroCloud as {userId}");
+        await slackAppService.SendSlackEphemeralMessage(slackTeamId, channelId!, slackUserId, $"✅ You are signed in to MycroCloud as {userId}");
         
         return Ok(new
         {
