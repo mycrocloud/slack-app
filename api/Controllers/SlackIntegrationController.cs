@@ -2,36 +2,19 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
 using System.Text.Json;
-using Dapper;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.IdentityModel.Tokens;
-using Npgsql;
 using SlackApp.Services;
 
 namespace SlackApp.Controllers;
 
 [ApiController]
-[Route("slack")]
+[Route("slack/integration")]
 [IgnoreAntiforgeryToken]
-public class SlackController(IConfiguration configuration, SlackAppService slackAppService) : ControllerBase
+public class SlackIntegrationController(IConfiguration configuration, SlackAppService slackAppService) : ControllerBase
 {
-    [HttpPost("commands/ping")]
-    [Consumes("application/x-www-form-urlencoded")]
-    public IActionResult Ping([FromForm] SlackCommandPayload cmd)
-    {
-        return new JsonResult(new { response_type = "in_channel", text = "pong" });
-    }
-    
-    [HttpPost("commands/signin")]
-    [Consumes("application/x-www-form-urlencoded")]
-    public async Task<IActionResult> SignIn([FromForm] SlackCommandPayload cmd)
-    {
-        var selfUrl = Request.Scheme + "://" + Request.Host;
-        var link = slackAppService.GenerateSignInUrl(cmd.UserId, cmd.TeamId, cmd.ChannelId, selfUrl);
-        
-        return new JsonResult(new { response_type = "in_channel", text = link });
-    }
+    public const string ControllerName = "SlackIntegration";
     
     [HttpPost("link-callback")]
     [Authorize]
@@ -61,27 +44,14 @@ public class SlackController(IConfiguration configuration, SlackAppService slack
 
         await SaveSlackMappingAsync(userId, slackUserId, slackTeamId, channelId);
         
-        var slackBotToken = await GetSlackBotTokenAsync(slackTeamId);
-
-        await SendSlackEphemeralAsync(slackBotToken, channelId!, $"✅ You are signed in to MycroCloud as {userId}");
+        await slackAppService.SendSlackEphemeralAsync(slackTeamId, channelId!, $"✅ You are signed in to MycroCloud as {userId}");
         
         return Ok(new { message = "Slack account linked successfully" });
     }
 
-    private async Task<string> GetSlackBotTokenAsync(string slackTeamId)
-    {
-        using var dbConnection = new NpgsqlConnection(configuration.GetConnectionString("DefaultConnection"));
-        const string sql =
-    """
-        SELECT "BotAccessToken" FROM "SlackInstallations" WHERE "TeamId" = @TeamId; 
-    """;
-        var token = await dbConnection.QuerySingleAsync<string>(sql, new { TeamId = slackTeamId });
-
-        return token;
-    }
-
     private async Task SaveSlackMappingAsync(string? userId, string slackUserId, string slackTeamId, string? channelId)
     {
+        //TODO: implement
         var json = "[]";
         var path = "maps.json";
         
@@ -102,24 +72,6 @@ public class SlackController(IConfiguration configuration, SlackAppService slack
         json = JsonSerializer.Serialize(maps);
 
         await System.IO.File.WriteAllTextAsync(path, json);
-    }
-    
-    private async Task SendSlackEphemeralAsync(string botToken, string channelId, string text)
-    {
-        using var http = new HttpClient();
-        http.DefaultRequestHeaders.Authorization = 
-            new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", botToken);
-        
-        var joinPayload = new { channel = channelId };
-        
-        var payload = new
-        {
-            channel = channelId,
-            text
-        };
-
-        var response = await http.PostAsJsonAsync("https://slack.com/api/chat.postMessage", payload);
-        var json = await response.Content.ReadAsStringAsync();
     }
 }
 
