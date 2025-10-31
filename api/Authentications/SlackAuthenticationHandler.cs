@@ -3,6 +3,7 @@ using System.Text.Encodings.Web;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.Extensions.Options;
+using SlackApp.Extensions;
 using SlackApp.Services;
 
 namespace SlackApp.Authentications;
@@ -18,6 +19,11 @@ public class SlackAuthenticationHandler: AuthenticationHandler<SlackAuthenticati
 
     protected override async Task<AuthenticateResult> HandleAuthenticateAsync()
     {
+        if (!Request.IsSlackCommandRequest()) //TODO: fix this
+        {
+            return AuthenticateResult.NoResult();
+        }
+        
         var body = Context.Items["Slack:Body"] as string;
 
         var query = QueryHelpers.ParseQuery(body);

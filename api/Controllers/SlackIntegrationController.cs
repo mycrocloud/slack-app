@@ -46,7 +46,10 @@ public class SlackIntegrationController(IConfiguration configuration, SlackAppSe
         
         await slackAppService.SendSlackEphemeralAsync(slackTeamId, channelId!, $"✅ You are signed in to MycroCloud as {userId}");
         
-        return Ok(new { message = "Slack account linked successfully" });
+        return Ok(new
+        {
+            redirect_url = $"https://slack.com/app_redirect?channel={channelId}&team={slackTeamId}"
+        });
     }
 }
 
