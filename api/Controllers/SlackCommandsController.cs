@@ -19,23 +19,57 @@ public class SlackCommandsController(SlackAppService slackAppService) : Controll
         return new JsonResult(new { response_type = "in_channel", text = "pong" });
     }
     
-    [HttpPost("login")]
+    [HttpPost("signin")]
     [AllowAnonymous]
     [Consumes("application/x-www-form-urlencoded")]
     public async Task<IActionResult> SignIn([FromForm] SlackCommandPayload cmd)
     {
-        var link = slackAppService.GenerateSignInUrl(cmd.UserId!, cmd.TeamId!, cmd.ChannelId, HttpContext);
+        if (User.Identity.IsAuthenticated)
+        {
+            var text = $"""
+                        You are already signed in to MycroCloud with {User.GetUserId()}.
+                        To sign out, run `/mycrocloud login`
+                        """;
+            
+            return new JsonResult(new { response_type = "in_channel", text });
+        }
         
-        return new JsonResult(new { response_type = "ephemeral", text = link });
+        var link = slackAppService.GenerateSignInUrl(cmd.UserId!, cmd.TeamId!, cmd.ChannelId, HttpContext);
+
+        return new JsonResult(new
+        {
+            response_type = "ephemeral", blocks = new object[]
+            {
+                new
+                {
+                    type = "section",
+                    text = new { type = "mrkdwn", text = "Finish connecting your Vercel account" }
+                },
+                new
+                {
+                    type = "actions",
+                    elements = new object[]
+                    {
+                        new
+                        {
+                            type = "button",
+                            text = new { type = "plain_text", text = "Continue with MycroCloud", emoji = true },
+                            url = link,
+                            style = "primary"
+                        }
+                    }
+                }
+            }
+        });
     }
     
-    [HttpPost("logout")]
+    [HttpPost("signout")]
     [Consumes("application/x-www-form-urlencoded")]
-    public async Task<IActionResult> LogOut()
+    public new async Task<IActionResult> SignOut()
     {
         await slackAppService.LogOut(User.GetSlackTeamId(), User.GetSlackUserId());
         
-        return new JsonResult(new { response_type = "ephemeral", text = "Bye!" });
+        return new JsonResult(new { response_type = "ephemeral", text = "Your account was successfully unlinked." });
     }
     
     [HttpPost("whoami")]
