@@ -7,7 +7,7 @@ namespace SlackApp.Controllers;
 
 [ApiController]
 [Route("slack/commands")]
-[Authorize]
+[Authorize(AuthenticationSchemes = "Slack")]
 [IgnoreAntiforgeryToken]
 public class SlackCommandsController(SlackAppService slackAppService) : ControllerBase
 {
@@ -16,7 +16,7 @@ public class SlackCommandsController(SlackAppService slackAppService) : Controll
     [Consumes("application/x-www-form-urlencoded")]
     public IActionResult Ping()
     {
-        return new JsonResult(new { response_type = "in_channel", text = "pong" });
+        return new JsonResult(new { response_type = "ephemeral", text = "pong" });
     }
     
     [HttpPost("signin")]

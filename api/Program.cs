@@ -1,4 +1,3 @@
-using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.HttpOverrides;
 using SlackApp.Authentications;
 using SlackApp.Middlewares;
@@ -9,7 +8,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services
-    .AddAuthentication("Slack")
+    .AddAuthentication()
     .AddScheme<SlackAuthenticationOptions, SlackAuthenticationHandler>("Slack", _ => {})
     .AddJwtBearer("MycroCloudApi", options =>
     {
