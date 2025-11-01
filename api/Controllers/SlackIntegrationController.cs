@@ -1,6 +1,7 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.IdentityModel.Tokens;
@@ -12,7 +13,7 @@ namespace SlackApp.Controllers;
 [ApiController]
 [Route("slack/integration")]
 [IgnoreAntiforgeryToken]
-[Authorize(AuthenticationSchemes = "MycroCloudApi")]
+[Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
 public class SlackIntegrationController(IConfiguration configuration, SlackAppService slackAppService) : ControllerBase
 {
     public const string ControllerName = "SlackIntegration";

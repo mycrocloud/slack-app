@@ -6,7 +6,7 @@ using Microsoft.Extensions.Options;
 using SlackApp.Extensions;
 using SlackApp.Services;
 
-namespace SlackApp.Authentications;
+namespace SlackApp.Authentication;
 
 public class SlackAuthenticationHandler: AuthenticationHandler<SlackAuthenticationOptions>
 {

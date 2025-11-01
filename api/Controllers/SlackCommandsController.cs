@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using SlackApp.Authentication;
 using SlackApp.Extensions;
 using SlackApp.Services;
 
@@ -7,7 +8,7 @@ namespace SlackApp.Controllers;
 
 [ApiController]
 [Route("slack/commands")]
-[Authorize(AuthenticationSchemes = "Slack")]
+[Authorize(AuthenticationSchemes = SlackDefaults.AuthenticationScheme)]
 [IgnoreAntiforgeryToken]
 public class SlackCommandsController(SlackAppService slackAppService) : ControllerBase
 {
