@@ -3,7 +3,6 @@ using System.Text.Encodings.Web;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.Extensions.Options;
-using SlackApp.Extensions;
 using SlackApp.Services;
 
 namespace SlackApp.Authentication;
@@ -11,19 +10,17 @@ namespace SlackApp.Authentication;
 public class SlackAuthenticationHandler: AuthenticationHandler<SlackAuthenticationOptions>
 {
     private readonly SlackAppService _slackAppService;
+    private readonly ILogger<SlackAuthenticationHandler> _logger;
 
     public SlackAuthenticationHandler(IOptionsMonitor<SlackAuthenticationOptions> options, ILoggerFactory logger, UrlEncoder encoder, ISystemClock clock, SlackAppService slackAppService) : base(options, logger, encoder, clock)
     {
         _slackAppService = slackAppService;
+        _logger = logger.CreateLogger<SlackAuthenticationHandler>();
     }
 
     protected override async Task<AuthenticateResult> HandleAuthenticateAsync()
     {
-        if (!Request.IsSlackCommandRequest()) //TODO: fix this
-        {
-            return AuthenticateResult.NoResult();
-        }
-        
+        _logger.LogTrace("HandleAuthenticateAsync");
         var body = Context.Items["Slack:Body"] as string;
 
         var query = QueryHelpers.ParseQuery(body);

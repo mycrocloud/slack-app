@@ -2,16 +2,9 @@ using SlackApp.Extensions;
 
 namespace SlackApp.Middlewares;
 
-public class ReadSlackRequestBodyMiddleware
+public class ReadSlackRequestBodyMiddleware(RequestDelegate next, ILogger<ReadSlackRequestBodyMiddleware> logger)
 {
-    private readonly RequestDelegate _next;
-    private readonly ILogger _logger;
-    
-    public ReadSlackRequestBodyMiddleware(RequestDelegate next, ILogger<ReadSlackRequestBodyMiddleware> logger)
-    {
-        _next = next;
-        _logger = logger;
-    }
+    private readonly ILogger _logger = logger;
 
     public async Task Invoke(HttpContext context)
     {
@@ -20,9 +13,10 @@ public class ReadSlackRequestBodyMiddleware
             var requestBody = await context.ReadRequestBody();
             
             _logger.LogDebug("Request Body:{@requestBody}", requestBody);
+            
             context.Items.Add("Slack:Body", requestBody);
         }
 
-        await _next(context);
+        await next(context);
     }
 }
