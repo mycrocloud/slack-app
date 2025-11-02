@@ -50,5 +50,6 @@ app.UseAuthorization();
 
 app.MapGet("/ping", () => "pong");
 app.MapControllers();
+app.UseSlackCommandFallback();
 
 app.Run();
